@@ -128,6 +128,9 @@ kubectl wait service.serving.knative.dev/cloudevents-sink --for=condition=Ready 
 kn trigger create cloudevents-trigger --sink cloudevents-sink --broker kafka-backed-broker
 kubectl wait trigger.eventing.knative.dev/cloudevents-trigger --for=condition=Ready --timeout=60s
 
+kn trigger create cloudevents-trigger-kafka --sink cloudevents-sink  --broker kafka-backed-broker --filter type=only-kafka
+kubectl wait trigger.eventing.knative.dev/cloudevents-trigger-kafka --for=condition=Ready --timeout=60s
+
 # 对 knative cluster 开启 tunnel
 # tunnel creates a route to services deployed with type LoadBalancer and sets their Ingress to their ClusterIP. for a
 # detailed example see https://minikube.sigs.k8s.io/docs/tasks/loadbalancer
@@ -137,8 +140,17 @@ curl -i "$(kubectl get service.serving.knative.dev/cloudevents-source -o=jsonpat
         -H "Content-Type: application/json" \
         -H "Ce-Id: 123456789" \
         -H "Ce-Specversion: 1.0" \
-        -H "Ce-Type: kafka-channel" \
+        -H "Ce-Type: some-type" \
         -H "Ce-Source: command-line" \
         -d '{"msg":"00000000"}'
 
+curl -i "$(kubectl get service.serving.knative.dev/cloudevents-source -o=jsonpath='{.status.url}' -n default)/messages" \
+        -H "Content-Type: application/json" \
+        -H "Ce-Id: 123456789" \
+        -H "Ce-Specversion: 1.0" \
+        -H "Ce-Type: only-kafka" \
+        -H "Ce-Source: command-line" \
+        -d '{"msg":"only-kafka"}'
+
+# 多个 trigger 不互斥， Ce-Type: only-kafka 会通过上面的两个 trigger 发给 sink，sink 会接收到两条同样的消息
 curl "$(kubectl get service.serving.knative.dev/cloudevents-sink -o=jsonpath='{.status.url}' -n default)/messages"
